@@ -28,7 +28,7 @@ contains the answer.
 
 ---
 
-this is the core promise of retrieval. If the right chunk never comes back, nothing downstream (source citing, answer generation) can be correct either.
+If the right chunk never comes back, nothing downstream (source citing, answer generation) can be correct either.
 
 ## 2. Every answer names a source
 

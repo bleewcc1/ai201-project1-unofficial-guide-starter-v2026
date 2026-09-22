@@ -30,6 +30,7 @@ It's travel guides divided into  town profiles and broader regional resources. L
 
      Milestone 5. -->
 
+This system is an AI-powered retrieval-augmented question answering assistant built on the Campus Life corpus, a collection of unofficial, candid student guides covering daily university life. It answers practical questions about campus living, including dorm selection, dining hall hacks, off-campus housing strategies, campus traditions, and navigating registration hurdles. Rather than relying on rigid, official admissions brochures, it draws directly from peer-shared student advice to provide grounded, honest recommendations with direct document citations. If a user asks a question outside the scope of campus life or university resources, the system safely declines to answer rather than guessing.
 
 ## Chunking Strategy
 
@@ -165,6 +166,8 @@ Withdrawal runs until week ten and requires an adviser signature, which results 
      "I used AI to help me code" is not.
 
      Milestone 5. -->
+
+First, I used AI to understand the chunking function, but I had to manually adjust the boundary conditions to prevent mid-sentence cuts and preserve document metadata so each chunk remained a coherent, standalone thought for evaluation. Second, I consulted AI to set the relevance distance cutoff, but rejected its suggested 0.40 threshold and in favor of a tested 0.75 cutoff and TOP_K = 5 after evaluating score distributions showed the model's numbers blocked valid in-scope questions.    
 
 **1.**
 
