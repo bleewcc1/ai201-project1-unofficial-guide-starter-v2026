@@ -22,12 +22,13 @@ names a target of "4 of 5", and four of three is not a thing.
 """
 
 QUESTIONS = [
+    {"question": "what is the textbook for ECON 101?", "expects": "The textbook for ECON 101 is 'Principles of Economics' by N. Gregory Mankiw."},
     {"question": "how much times can change the meal plan?", "expects": "You can change your meal plan tier once, in the first ten days of the semester. After that it's locked. "},
     {"question": "what is the workload on ECON 101 Introduction to Economics?", "expects": "People keep asking so: 4 hours a week outside class."},
     {"question": "what is the average class size for ECON 101?", "expects": "The average class size for ECON 101 is around 300 students."},
     {"question": "what are the prerequisites for ECON 101?", "expects": "The prerequisites for ECON 101 are MATH 101 and ENGL 101."},
     {"question": "what is the professor's office hours for ECON 101?", "expects": "The professor's office hours for ECON 101 are Tuesday and Thursday from 2:00 PM to 4:00 PM."},
-    {"question": "what is the textbook for ECON 101?", "expects": "The textbook for ECON 101 is 'Principles of Economics' by N. Gregory Mankiw."},
+
 ]
 
 # Questions from a different world entirely. Your gate should refuse all five.
