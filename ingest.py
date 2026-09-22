@@ -58,7 +58,7 @@ def load_documents(corpus: str | None = None) -> list[Document]:
 
     documents: list[Document] = []
     for path in sorted(folder.iterdir()):
-        if path.suffix.lower() not in {".txt", ".md"}:
+        if path.name.startswith("._") or path.suffix.lower() not in {".txt", ".md"}:
             continue
         text = clean_text(path.read_text(encoding="utf-8"))
         if text:

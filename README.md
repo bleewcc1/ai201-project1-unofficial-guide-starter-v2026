@@ -1,6 +1,6 @@
 # The Unofficial Guide
 
-<!-- Replace this line with your name and which corpus you picked. -->
+Billy Lee - city_guides
 
 > **This file is your submission.** Fill it in as you go — most sections get
 > written during the milestone that produces them, not at the end.
@@ -26,7 +26,10 @@
      questions your system answers. Write it for someone who has never seen
      this repo.
 
+It's travel guides divided into  town profiles and broader regional resources. Local guides provide consistent practical details on transport, sights, dining, lodging, and travel tips for specific destinations. The remaining  guides cover area-wide topics, including accessibility, local food culture, regional transportation, seasonal conditions, and walking routes.
+
      Milestone 5. -->
+
 
 ## Chunking Strategy
 
