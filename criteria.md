@@ -28,6 +28,8 @@ contains the answer.
 
 ---
 
+this is the core promise of retrieval. If the right chunk never comes back, nothing downstream (source citing, answer generation) can be correct either.
+
 ## 2. Every answer names a source
 
 Every answer the system produces names at least one source document.
@@ -37,6 +39,7 @@ Every answer the system produces names at least one source document.
      or what would have to go wrong for it not to be? -->
 
 ---
+without a source, there's no way to check whether the system is telling the truth or making something up. It's what makes the answer verifiable at all.
 
 ## 3. The relevance gate stops out-of-corpus questions
 
@@ -55,6 +58,8 @@ in at least 4 of 5 tries.
 
 ---
 
+a system that confidently answers questions it has no information for is worse than one that says "I don't know." This is what keeps it from hallucinating.
+
 ## 4. Something about your chunks
 
 <!-- YOU WRITE THIS ONE.
@@ -69,11 +74,11 @@ in at least 4 of 5 tries.
        - "No chunk is shorter than 200 characters, since anything below that
           in my corpus turned out to be a heading with no content under it." -->
 
-
+At least 4 of 5 sample chunks contain content from only one labelled section (e.g. "Average class size," "Class prerequiste," "Wordload for the class") — no chunk mixes two sections or gets cut off mid-heading.
 
 **Why this target:**
 
-
+Topics are section so the default of 800 character chunker cut blindly across headings, and mixes unrelated context. Targeting 4 of 5 allows to eusre the custom chunker reliably with in each section.
 
 ---
 
@@ -87,11 +92,11 @@ in at least 4 of 5 tries.
      present — anything, as long as it names a number or an observable
      outcome. -->
 
-
+For at least 4 of 5 in-corpus test questions, the source named in the answer is the document that actually supports the answer (not just any document with a name attached).
 
 **Why this target:**
 
-
+To validate that the correct sources was use for the answer. The question could pulled from different corpus as it the subject might be in multiple corpus.
 
 ---
 
