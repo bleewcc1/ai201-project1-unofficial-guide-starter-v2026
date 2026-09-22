@@ -132,9 +132,12 @@ Laundry costs $1.75 wash, $1.75 dry, app-based. On noise: moderate; the building
 
 **Question:**
 
+what is the withdraw policy?
+
 **Answer:**
 
 ```
+Withdrawal runs until week ten and requires an adviser signature, which results in a "W" on your transcript that does not affect your GPA. (Source: admin_withdrawal_deadline.txt)
 ```
 
 **My relevance cutoff:**

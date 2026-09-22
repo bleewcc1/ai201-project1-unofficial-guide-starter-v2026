@@ -22,7 +22,7 @@ names a target of "4 of 5", and four of three is not a thing.
 """
 
 QUESTIONS = [
-    {"question": "what is the textbook for ECON 101?", "expects": "The textbook for ECON 101 is 'Principles of Economics' by N. Gregory Mankiw."},
+    {"question": "what is the withdrawal policy?", "expects": "Withdrawal runs to week ten."},
     {"question": "how much times can change the meal plan?", "expects": "You can change your meal plan tier once, in the first ten days of the semester. After that it's locked. "},
     {"question": "what is the workload on ECON 101 Introduction to Economics?", "expects": "People keep asking so: 4 hours a week outside class."},
     {"question": "what is the average class size for ECON 101?", "expects": "The average class size for ECON 101 is around 300 students."},
