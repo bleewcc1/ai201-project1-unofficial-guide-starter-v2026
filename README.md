@@ -198,17 +198,88 @@ First, I used AI to understand the chunking function, but I had to manually adju
 
      Milestone 1. -->
 
+From `results/run_2026-09-23_2304_before.md` — `python run_eval.py --label before`,
+corpus `campus_life`, top-k 5, cutoff 0.75, caching off.
+
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| 1. Retrieved chunk contains the answer | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 2. Every answer names a source | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. Sampled chunk holds one labelled section | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 5. Named source is the one that supports the answer | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
 
-<!-- Underneath, paste the REAL output for each criterion from one of your
-     runs — the actual text your system produced, not a description of it.
-     Name the file and function that produced it. -->
+Criteria 3 and 4 are one deterministic pass each, so the same number goes in all
+three columns — the gate is a comparison against a fixed number, and chunking
+happens once at index time.
+
+| Question | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| what are the work load for ECON 101? | pass | pass | pass |
+| what is the withdrawal policy? | pass | pass | pass |
+| how many times can you change the meal plan? | pass | pass | pass |
+| what is the workload on ECON 101 Introduction to Economics? | pass | fail | fail |
+| what is the average class size for ECON 101? | pass | pass | pass |
+
+This second table is `scorer.py::judge`, which substring-matches the generated
+answer against `expects`. That is not the same measurement as criterion 1 — see
+the Q4 output below, where the chunk containing the answer was retrieved on a
+run the scorer marked `fail`.
+
+### Real output
+
+**Criterion 1** — `run_eval.py::main`, retrieval by `store.py::search`. Q4, run 2,
+the run the scorer failed. `course_econ_101_workload.txt` contains "4 hours a
+week outside class", and it came back in all three runs:
+
+```
+### what is the workload on ECON 101 Introduction to Economics? — run 2
+
+- Best distance: 0.2730 (passed the gate)
+- Sources retrieved: course_econ_101.txt, course_econ_101_exams.txt, course_econ_101_workload.txt, course_engl_205_workload.txt, course_hist_118_workload.txt
+
+The workload for ECON 101 Introduction to Economics is 4 hours a week outside of class (source: course_econ_101_workload.txt and course_econ_101.txt). This workload is front-loaded, meaning the first month is heavier than the rest (source: course_econ_101_workload.txt).
+```
+
+**Criterion 2** — `generate.py::answer_from_chunks`. Every one of the 15 answers
+carries a source line. One of them:
+
+```
+Withdrawal runs until week ten and requires an adviser signature. It results in a "W" on your transcript that does not affect your GPA.
+
+Source: admin_withdrawal_deadline.txt
+```
+
+**Criterion 3** — `run_eval.py::check_out_of_scope`, cutoff 0.75, refused 5 of 5:
+
+```
+| Out-of-scope question                                       | Best distance | Gate    |
+| What is the capital of Mongolia?                            | 0.825         | refused |
+| How do I change the oil in a diesel engine?                 | 0.934         | refused |
+| Who won the 1994 World Cup?                                 | 0.886         | refused |
+| What is the recommended dosage of ibuprofen for a headache? | 0.844         | refused |
+| How do I write a for loop in Rust?                          | 0.896         | refused |
+```
+
+The worst in-corpus distance in the same run was 0.4689, so the two groups are
+0.36 apart and nothing sat near the cutoff.
+
+**Criterion 4** — `chunker.py::fallback_split`, via `python app.py chunks -n 5`.
+The five chunks are pasted in full under Sample Chunks above; each one is a whole
+document with its heading intact and no content from a second section, so 5 of 5.
+The structural reason is in the Verdicts note: the longest document in the corpus
+is 554 characters against `CHUNK_SIZE = 600`, so 88 documents produce 88 chunks
+and no chunk boundary is ever drawn.
+
+**Criterion 5** — each cited file read against the answer it was cited for:
+
+```
+what are the work load for ECON 101?        -> course_econ_101_workload.txt   "4 hours a week outside class"          correct
+what is the withdrawal policy?              -> admin_withdrawal_deadline.txt  "Withdrawal runs to week ten"           correct
+how many times can you change the meal plan? -> admin_meal_plan_changes.txt   "change your meal plan tier once"       correct
+what is the workload on ECON 101 ...?       -> course_econ_101_workload.txt   "4 hours a week outside class"          correct
+what is the average class size for ECON 101? -> course_econ_101.txt           "large lecture, 300 people"             correct
+```
 
 ## Verdicts
 
@@ -221,13 +292,15 @@ First, I used AI to understand the chunking function, but I had to manually adju
 
      Milestone 2. -->
 
+Judged against `results/run_2026-09-23_2304_before.md` (three runs, cutoff 0.75, top-k 5).
+
 | # | Criterion | Verdict | How I decided |
 |---|---|---|---|
-| 1 |  |  |  |
-| 2 |  |  |  |
-| 3 |  |  |  |
-| 4 |  |  |  |
-| 5 |  |  |  |
+| 1 | Retrieved chunks contain the answer — 4 of 5 | MET | Every question pulled back a chunk holding its answer in all three runs (5/5, 5/5, 5/5); Q4 retrieved `course_econ_101_workload.txt`, which says "4 hours a week outside class", on all three. The two `fail` marks on Q4 in the question table are `scorer.py::judge` substring-matching the *generated* wording ("outside **of** class") against `expects` — that's generation, not retrieval, and even counting them as misses gives 5/4/4, still at or above 4 in every run. |
+| 2 | Every answer names a source — 5 of 5 | MET | All 15 answers in the before run name at least one `.txt` file, so 5/5 in each of the three runs. This target has no slack in it — one unsourced answer out of fifteen would have made it a MISS. |
+| 3 | Gate stops out-of-corpus questions — 4 of 5 | MET | `run_eval.py::check_out_of_scope` refused 5 of 5 at cutoff 0.75, in one deterministic pass. It was not close: the nearest out-of-scope question was 0.825 (capital of Mongolia) against a worst in-corpus distance of 0.469. |
+| 4 | 4 of 5 sampled chunks hold one labelled section — no mixing, no cut heading | MET | All 5 sampled chunks are a whole document with its heading intact and nothing from a second section. But it is met for a reason the criterion did not intend: the longest document in `campus_life` is 554 characters against `CHUNK_SIZE = 600`, so nothing ever gets cut (88 documents → 88 chunks), and `chunker.py::split_documents` still returns `fallback_split(documents)`. The criterion could not have failed on this corpus. |
+| 5 | Source named is the one that supports the answer — 4 of 5 | MET | I read each cited file against the answer it was cited for: withdrawal → `admin_withdrawal_deadline.txt` ("week ten"), meal plan → `admin_meal_plan_changes.txt` ("once, in the first ten days"), class size → `course_econ_101.txt` ("300 people"), both workload questions → `course_econ_101_workload.txt`. 5 of 5 correct in every run, with no answer citing a file that merely mentions the topic. |
 
 ## Diagnoses
 
