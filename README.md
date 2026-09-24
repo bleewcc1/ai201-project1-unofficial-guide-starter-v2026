@@ -322,6 +322,74 @@ Judged against `results/run_2026-09-23_2304_before.md` (three runs, cutoff 0.75,
 
      Milestone 3. -->
 
+I missed nothing. All five criteria cleared on the first run, which is the
+result that deserves the most suspicion, so the rest of this section is about
+why.
+
+**The one thing that did fail — stage: generation.** Q4 was marked `fail` on
+runs 2 and 3. `course_econ_101_workload.txt` was retrieved on all three runs and
+contains "4 hours a week outside class" word for word, so loading, chunking,
+embedding and retrieval all did their job. The model rephrased it as "4 hours a
+week outside **of** class", and `scorer.py::judge` is a substring test against
+`expects`, so one extra word scored as a wrong answer. The stage that broke is
+generation, and the mechanism is that my scorer measures wording while the
+stage producing that wording is the only one free to vary.
+
+**The pattern: four of my five criteria cannot move.** Three runs produced three
+identical numbers, and that is not luck. Retrieval is deterministic — Q4 came
+back at best distance 0.2730 on all three runs — the gate is a comparison
+against a fixed number, and chunking happens once at index time. Only generation
+varies. So criteria 1, 3 and 4 are measurements of deterministic stages, and
+running them three times could never have told me anything one run didn't. The
+single failure I got, and every future failure of the same kind, has to come
+from generation, because it is the only stage with any variance in it.
+
+**Were my targets set low? Three of them, yes.**
+
+- **Criterion 4 could not have failed.** The longest document in `campus_life`
+  is 554 characters and `CHUNK_SIZE` is 600, so `split_documents` never draws a
+  boundary — 88 documents become 88 chunks, each one a whole post with its
+  heading attached. I wrote the target to check that chunks don't mix sections,
+  but on this corpus no chunk can mix anything. It measures the corpus, not the
+  chunker, and `chunker.py::split_documents` still just returns
+  `fallback_split(documents)`.
+- **Criterion 2 is prompt-forced.** `generate.py::GROUNDING_INSTRUCTION` (line
+  280) says "Name the document your answer came from", and `build_prompt` says
+  it again at line 299. Missing 5 of 5 would have required the model to ignore
+  an instruction it is given twice in the same call. That is a real property of
+  the system, but it isn't one my criterion discovered.
+- **Criterion 3 had a 0.36-wide gap to land in.** Worst in-corpus distance
+  0.4689, nearest out-of-corpus 0.825, cutoff 0.75. Nothing was close to the
+  line, so "4 of 5" was decided the moment I picked the cutoff. The target also
+  only counts refusals, so the failure a tighter cutoff would actually cause —
+  refusing a question my corpus does cover — isn't measured anywhere.
+- **Criteria 1 and 5 rest on a narrower question set than it looks.** Three of
+  my five questions are about ECON 101, and two of those (Q1 and Q4) are the
+  same question worded differently. Only two questions reach the other 85
+  documents, and in every case the filename nearly restates the question —
+  `course_econ_101_workload.txt` for "what is the workload for ECON 101". Correct
+  attribution wasn't hard to achieve.
+
+**What I'd tighten, and to what.** Criterion 4, because it's the one that can't
+fail. The real chunk-level weakness in this corpus isn't chunks that mix
+sections — it's that one topic is spread across separate *files*
+(`course_econ_101.txt`, `course_econ_101_workload.txt`,
+`course_econ_101_exams.txt`), so a chunk is a whole document and still not a
+whole answer. The tighter version:
+
+> For all 5 of my test questions, one single retrieved chunk contains the
+> complete answer, with no part of it supplied by a second document.
+
+That can fail, and I expect it to: a question like "what is the format and the
+workload for ECON 101?" has its format in one file and its workload detail in
+another, so no single chunk holds both.
+
+Second, I'd raise criterion 1 from 4 of 5 to 5 of 5 and rebuild the question set
+first — drop the duplicate ECON workload question, and add questions against
+housing, dining and admin so the other 85 documents are actually under test.
+Raising the number without fixing the questions would just be a harder target on
+the same easy four.
+
 ## The Improvement
 
 **What I changed:**
