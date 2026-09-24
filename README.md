@@ -34,8 +34,8 @@ This system is an AI-powered retrieval-augmented question answering assistant bu
 
 ## Chunking Strategy
 
-**Chunk size:**
-**Overlap:**
+**Chunk size:** 600
+**Overlap:** 50
 
 <!-- What about YOUR documents made you pick these numbers? Short posts and
      long sectioned guides don't want the same chunking, and "800 seemed
@@ -58,7 +58,7 @@ This system is an AI-powered retrieval-augmented question answering assistant bu
 
      Milestone 3. -->
 
-**Chunk 1** — source: `` — produced by: ``
+**Chunk 1** — source: `admin_add_drop_deadline.txt#0` — produced by: `chunker.py::fallback_split`
 
 ```
 ======================================================================
@@ -69,7 +69,7 @@ On the add/drop deadline
 You can add a course through the end of the second week. Dropping is a longer window — through the end of week six — but a drop after week two shows as a W on your transcript. Nothing anywhere on the registrar's site says this plainly,and students find out from each other.
 ```
 
-**Chunk 2** — source: `` — produced by: ``
+**Chunk 2** — source: `course_biol_160.txt#0` — produced by: `chunker.py::fallback_split`
 
 ```
 Chunk 2  |  source: course_biol_160.txt#0  |  produced by: chunker.py::fallback_split
@@ -83,7 +83,7 @@ Expect 9 to 11 hours a week, the heaviest first-year course by reputation.
 The one piece of advice: the unit tests come fast, roughly every three weeks; falling behind once is very hard to recover from.
 ```
 
-**Chunk 3** — source: `` — produced by: ``
+**Chunk 3** — source: `course_hist_118_workload.txt#0` — produced by: `chunker.py::fallback_split`
 
 ```
 ======================================================================
@@ -96,7 +96,7 @@ People keep asking so: a lot of reading, about 120 pages a week, but no problem 
 It's front-loaded — the first month is heavier than the rest, partly because you're learning the format.
 ```
 
-**Chunk 4** — source: `` — produced by: ``
+**Chunk 4** — source: `dining_pellew_dining_hall_followup.txt#0` — produced by: `chunker.py::fallback_split`
 
 ```
 ======================================================================
@@ -109,7 +109,7 @@ Adding to what people have said about Pellew Dining Hall. The wait figure of 12 
 Also worth saying: the furthest hall from anywhere, next to the athletics centre. Nobody tells you this at orientation.
 ```
 
-**Chunk 5** — source: `` — produced by: ``
+**Chunk 5** — source: `housing_innisfree_hall.txt#0` — produced by: `chunker.py::fallback_split`
 
 ```
 ======================================================================
@@ -141,7 +141,7 @@ what is the withdraw policy?
 Withdrawal runs until week ten and requires an adviser signature, which results in a "W" on your transcript that does not affect your GPA. (Source: admin_withdrawal_deadline.txt)
 ```
 
-**My relevance cutoff:**
+**My relevance cutoff:** 0.75 (`config.py::THRESHOLD`)
 
 <!-- The number you set in config.py, and how you got there.
 
@@ -154,7 +154,16 @@ Withdrawal runs until week ten and requires an adviser signature, which results 
 
 | Question | In corpus? | Best distance |
 |---|---|---|
-|  |  |  |
+| what is the workload on ECON 101 Introduction to Economics? | yes | 0.2730 |
+| how many times can you change the meal plan? | yes | 0.3116 |
+| what are the work load for ECON 101? | yes | 0.3671 |
+| what is the average class size for ECON 101? | yes | 0.4372 |
+| what is the withdrawal policy? | yes | 0.4689 |
+| What is the capital of Mongolia? | no | 0.825 |
+| What is the recommended dosage of ibuprofen for a headache? | no | 0.844 |
+| Who won the 1994 World Cup? | no | 0.886 |
+| How do I write a for loop in Rust? | no | 0.896 |
+| How do I change the oil in a diesel engine? | no | 0.934 |
 
 ## How I Used AI
 
@@ -169,9 +178,25 @@ Withdrawal runs until week ten and requires an adviser signature, which results 
 
 First, I used AI to understand the chunking function, but I had to manually adjust the boundary conditions to prevent mid-sentence cuts and preserve document metadata so each chunk remained a coherent, standalone thought for evaluation. Second, I consulted AI to set the relevance distance cutoff, but rejected its suggested 0.40 threshold and in favor of a tested 0.75 cutoff and TOP_K = 5 after evaluating score distributions showed the model's numbers blocked valid in-scope questions.    
 
-**1.**
+**1.** In week 2 I gave Claude my before run log and `criteria.md` and asked it
+to call each criterion MET or MISSED. It returned all five MET, which I expected,
+but it also flagged something I hadn't seen: criterion 4 could not have failed,
+because the longest document in `campus_life` is 554 characters and `CHUNK_SIZE`
+is 600, so `split_documents` never draws a boundary. I hadn't connected those two
+numbers. That one observation became my entire diagnosis and decided which
+improvement I made.
 
-**2.**
+**2.** Before building anything I told it: "I'm going to tighten the grounding
+prompt to fix the Q4 wording failure — tell me why that might not work." It
+argued that with all five criteria already at 5/5, the only number a prompt
+change could move was `scorer.py::judge`'s substring match, which is tuning the
+measurement rather than the system. I dropped that plan and changed the chunker
+instead. The prompt fix is still the first item in What's Still Broken, because
+the objection was about *when* to make it, not whether it's wrong.
+
+Claude also wrote the paragraph-splitting body of `split_documents` to that spec
+and ran the re-index and the after eval. Every number in both run logs comes
+from the files in `results/`.
 
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
@@ -544,9 +569,83 @@ the test.
 
      Milestone 5. -->
 
+No criterion is still missed, because none was missed to begin with. That is not
+the same as nothing being broken, and these are the four things I know are wrong
+with this system after two weeks of looking at it.
+
+**1. Generation rewords the documents, and my scorer can't tell that apart from
+a wrong answer.** Q4 fails on all three runs of the after log while
+`course_econ_101.txt#1` — retrieved every time — contains "4 hours a week
+outside class" verbatim. The model writes "outside **of** class" and
+`scorer.py::judge` is `expects in answer`. There are two fixes and they are
+different fixes: a prompt rule requiring figures and phrases be reproduced as
+written, and a scorer that compares the number and its unit instead of an exact
+substring. *Why I stopped:* this unit allows one change, and I'd have had to
+change the scorer to see whether the prompt fix worked — which would have
+invalidated the before/after comparison I was running. The prompt rule is the
+first thing I'd do next.
+
+**2. The relevance cutoff is now tuned for an index that no longer exists.** I
+set `THRESHOLD = 0.75` in Milestone 4 against 88 whole-document chunks. Against
+183 paragraph chunks the nearest out-of-corpus question sits at 0.787 — 0.037
+clear instead of 0.075. *What I'd do:* re-derive it the way I derived it the
+first time, running all ten questions against the new index and looking for
+where the gap actually is now. Worst in-corpus is 0.4689 and nearest
+out-of-corpus is 0.787, so something near 0.60 would restore margin on both
+sides. *Why I stopped:* re-tuning the gate in the same unit as the chunking
+change would have left me unable to say which of the two moved the numbers.
+
+**3. A chunk is now a whole paragraph but still not a whole answer.**
+`housing_morrow_house.txt#1` is "The good: cheapest housing tier by about $900 a
+year" and "The bad" is a different chunk. A question about the downsides of
+Morrow House retrieves half the picture, and my criterion 4 as written calls
+that a pass because it only asks whether a chunk mixes sections. *What I'd do:*
+adopt the tightened criterion 4 from my diagnosis first, then add a merge step
+that keeps adjacent paragraphs together up to roughly 350 characters so
+good/bad pairs survive. *Why I stopped:* the merge is only worth doing once
+there's a criterion that can tell me whether it helped. In that order, not this
+one.
+
+**4. Four of my five criteria still cannot fail on this question set.** Three of
+my five questions are about ECON 101 and two of those are the same question
+worded twice, so 83 of my 88 documents have never been under test. *What I'd do:*
+rebuild the question set across housing, dining and admin before touching any
+more code. *Why I stopped:* my criteria are frozen for this unit, and rewriting
+the questions now would mean my before and after logs were measuring two
+different things.
+
 ## What I'd Do Differently
 
 <!-- Knowing what you know now — which of your five criteria would you write
      differently, and why?
 
      Milestone 5. -->
+
+**Criterion 4 is the one I got most wrong.** I wrote it about chunks not mixing
+sections, and on a corpus whose longest document is 554 characters against a
+600-character chunk size, no chunk could mix anything. I'd write the version my
+diagnosis arrived at: *for all 5 questions, one single retrieved chunk contains
+the complete answer, with no part of it supplied by a second document.* That one
+can fail, and I already know it would.
+
+**Criterion 3 should have counted margin, not just refusals.** "Refuses 4 of 5"
+was true before my change and true after, while the distance to the cutoff
+halved underneath it. I'd write it as *all five refused, each at least 0.05
+clear of the cutoff, and all five in-corpus questions still pass the gate* — the
+second half matters because the failure a tighter cutoff causes is refusing a
+question I can answer, and nothing I wrote measures that.
+
+**Criterion 1 should name the unit it's measured in.** I wrote "retrieved chunks
+include one that contains the answer" and then checked it by looking at which
+*files* came back, which worked only for as long as one document was one chunk.
+The moment I changed the chunker that proxy broke silently. The criterion should
+say chunk text, because that's what retrieval actually returns.
+
+**Criterion 2 measures the prompt, not the system.** `generate.py` instructs the
+model to name its source twice in the same call, so 5 of 5 was decided before I
+ran anything. I'd replace it with something about attribution being *correct and
+minimal* — no file in the citation list that doesn't support the answer — which
+is the failure mode my answers actually show, since most of them cite two files
+where one would do.
+
+Criterion 5 is the only one of the five I'd keep as written.
