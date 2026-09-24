@@ -392,27 +392,140 @@ the same easy four.
 
 ## The Improvement
 
-**What I changed:**
+**What I changed:** One change, in `chunker.py::split_documents`. It used to
+return `fallback_split(documents)` — fixed 600-character windows. It now splits
+each document on paragraph breaks and carries the document's title line into
+every chunk, so a paragraph reading "4 hours a week outside class" still says
+which course it belongs to. Nothing else moved: same corpus, same embedder, same
+`TOP_K = 5`, same `THRESHOLD = 0.75`, same grounding prompt.
 
-**Why I picked it:**
+```
+before:  88 documents ->  88 chunks, 317 characters on average (shortest 178, longest 549)
+         produced by chunker.py::fallback_split
+after:   88 documents -> 183 chunks, 167 characters on average (shortest  63, longest 397)
+         produced by chunker.py::split_documents
+```
 
-<!-- Connect it to a specific diagnosis above in one sentence. If you can't,
-     you picked a fix because it sounded impressive. -->
+**Why I picked it:** My diagnosis said criterion 4 passed only because the
+longest document in the corpus (554 characters) is shorter than `CHUNK_SIZE`
+(600), so the chunker never drew a boundary and the criterion had nothing to
+test — this is the change that makes it draw boundaries, so the criterion is
+measuring the chunker for the first time.
+
+I considered tightening the grounding prompt instead, since generation is where
+the only real failure happened. I didn't, because with every criterion already
+at 5/5 the only number it could have moved was the scorer's substring match, and
+"reword the model until the string matcher agrees" is tuning the measurement
+rather than the system.
 
 ### Run Log — After
 
-<!-- Same format, same five criteria, three runs each.
-     `python run_eval.py --label after` -->
+From `results/run_2026-09-24_1432_after.md` — `python run_eval.py --label after`,
+same corpus, top-k and cutoff as the before run.
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| 1. Retrieved chunk contains the answer | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 2. Every answer names a source | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. Sampled chunk holds one labelled section | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 5. Named source is the one that supports the answer | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+
+Criterion 1 is now checked at the chunk level rather than by filename, because a
+document is no longer one chunk. Each question's `expects` string was matched
+against the text of the five chunks retrieval actually returned:
+
+```
+HIT  ['course_econ_101_workload.txt#0', 'course_econ_101.txt#1']  expects '4 hours a week '
+HIT  ['admin_withdrawal_deadline.txt#0']                          expects 'week ten'
+HIT  ['admin_meal_plan_changes.txt#0']                            expects 'once'
+HIT  ['course_econ_101.txt#1', 'course_econ_101_workload.txt#0']  expects '4 hours a week outside class'
+HIT  ['course_econ_101.txt#0']                                    expects '300 people'
+criterion 1 (chunk level): 5 of 5
+```
+
+| Question | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| what are the work load for ECON 101? | pass | pass | pass |
+| what is the withdrawal policy? | pass | pass | pass |
+| how many times can you change the meal plan? | pass | pass | pass |
+| what is the workload on ECON 101 Introduction to Economics? | fail | fail | fail |
+| what is the average class size for ECON 101? | pass | pass | pass |
+
+**Criterion 4 evidence** — `chunker.py::split_documents` via `python app.py chunks -n 5`.
+Two of the five sampled after the change:
+
+```
+======================================================================
+Chunk 3  |  source: course_phys_130_workload.txt#0  |  produced by: chunker.py::split_documents
+======================================================================
+Workload for PHYS 130 Mechanics
+
+People keep asking so: 7 hours a week, plus 3 on lab weeks. That's real time, not optimistic time.
+
+======================================================================
+Chunk 5  |  source: housing_morrow_house.txt#1  |  produced by: chunker.py::split_documents
+======================================================================
+Morrow House — what it's actually like
+
+The good: cheapest housing tier by about $900 a year, and the singles are real singles.
+```
+
+All five hold one paragraph under their own heading, with the heading intact and
+nothing from a second section — 5 of 5.
 
 **Did it help?**
+
+No criterion changed. All five were 5/5 before and all five are 5/5 after, which
+was the most likely outcome going in — they were already at ceiling, so nothing
+I did could raise them. By the one number that could move, it made things
+slightly worse: Q4 went from `pass/fail/fail` to `fail/fail/fail`. With three
+runs, 1 of 3 to 0 of 3 is within noise, and I'm not claiming the change caused
+it.
+
+Three things did move, and two of them are real.
+
+**1. Criterion 4 is now a test.** Before, 88 documents produced 88 chunks and no
+boundary was ever drawn, so the criterion passed without measuring anything.
+After, 183 chunks with a boundary at every paragraph — and it still passes 5 of
+5. Same verdict, an entirely different amount of evidence behind it. This is
+what I changed the chunker for.
+
+**2. Retrieval got more focused on the course questions.** Top-k is still 5, but
+the five chunks are better spent:
+
+| Question | Before — files in top 5 | After — files in top 5 | Best distance |
+|---|---|---|---|
+| workload on ECON 101 Introduction to Economics | `course_econ_101.txt`, `course_econ_101_exams.txt`, `course_econ_101_workload.txt`, `course_engl_205_workload.txt`, `course_hist_118_workload.txt` | `course_econ_101.txt`, `course_econ_101_exams.txt`, `course_econ_101_workload.txt` | 0.2730 → 0.2304 |
+| average class size for ECON 101 | `course_econ_101.txt`, `course_econ_101_exams.txt`, `course_econ_101_workload.txt`, `course_hist_118.txt`, `course_stat_150.txt` | `course_econ_101.txt`, `course_econ_101_exams.txt`, `course_econ_101_workload.txt` | 0.4372 → 0.3701 |
+
+Before, two of the five slots on the ECON workload question were spent on ENGL
+205 and HIST 118 — other courses' workload documents, which match on the word
+"workload" and are useless for the question. After, all five chunks come from
+ECON 101 files. My criteria don't measure this, so it shows up nowhere in the
+verdict table.
+
+**3. The gate lost half its margin, and that's the cost.** Smaller chunks pull
+everything closer, including questions my corpus can't answer:
+
+| Out-of-corpus question | Before | After |
+|---|---|---|
+| What is the capital of Mongolia? | 0.825 | 0.787 |
+| Who won the 1994 World Cup? | 0.886 | 0.847 |
+| How do I write a for loop in Rust? | 0.896 | 0.860 |
+
+Cutoff is 0.75, so the nearest miss went from 0.075 clear of the line to 0.037
+clear. Criterion 3 still reads 5 of 5 refused, but it is twice as close to
+failing as it was, and nothing in my run log would have told me that if I hadn't
+compared the distances by hand.
+
+**What it did not fix, as expected.** The chunk-level check above shows
+`course_econ_101.txt#1` — retrieved on every run — contains "4 hours a week
+outside class" word for word. The model was handed the exact string and wrote
+"4 hours a week outside **of** class" three times out of three. That is
+confirmation of the diagnosis rather than a disappointment: the failure is in
+generation, chunking was never going to reach it, and I said so before I ran
+the test.
 
 <!-- Say plainly whether it did, and how you know. If it made things worse,
      say that — a change that backfired, honestly reported, earns full credit
